@@ -47,6 +47,7 @@ const rule: Rule.RuleModule = {
     const sourceCode = context.getSourceCode();
     const comments = sourceCode.getAllComments();
     const options = (context.options[0] as RuleOptions) || {};
+    const blankLinesBetweenGroups = options.blankLinesBetweenGroups || 1;
     const blankLinesWithinGroups = options.blankLinesWithinGroups || 0;
 
     // 查找所有的组标记
@@ -88,49 +89,45 @@ const rule: Rule.RuleModule = {
       ).length;
     }
 
+    // 检查节点是否在任何组内
+    function isInGroup(node: Node): GroupMarker | null {
+      const nodeLine = node.loc!.start.line;
+      for (const group of groupMarkers) {
+        if (group.start <= nodeLine && (!group.end || nodeLine <= group.end)) {
+          return group;
+        }
+      }
+      return null;
+    }
+
     return {
       Program(): void {
         // 处理所有节点，确定它们是否在组内
         const ast = sourceCode.ast as unknown as Program;
         const allNodes = ast.body;
 
+        // 先填充组的节点
         for (let i = 0; i < allNodes.length; i++) {
           const node = allNodes[i];
-          const nodeLine = node.loc!.start.line;
-
-          for (const group of groupMarkers) {
-            if (
-              group.start <= nodeLine &&
-              (!group.end || nodeLine <= group.end)
-            ) {
-              group.nodes.push(node);
-              break;
-            }
+          const group = isInGroup(node);
+          if (group) {
+            group.nodes.push(node);
           }
+        }
 
-          // 只处理前后节点都在同一组内的情况
-          if (i > 0) {
+        for (let i = 0; i < allNodes.length; i++) {
+          const node = allNodes[i];
+          const currLine = node.loc!.start.line;
+          const nodeGroup = isInGroup(node);
+
+          // 处理组内节点
+          if (i > 0 && nodeGroup) {
             const prevNode = allNodes[i - 1];
-            const currLine = node.loc!.start.line;
             const prevLine = prevNode.loc!.end.line;
+            const prevNodeGroup = isInGroup(prevNode);
 
-            // 检查前一个节点和当前节点是否在同一组中
-            let sameGroup = false;
-            let currentGroup = null;
-
-            for (const group of groupMarkers) {
-              if (
-                group.nodes.includes(prevNode) &&
-                group.nodes.includes(node)
-              ) {
-                sameGroup = true;
-                currentGroup = group;
-                break;
-              }
-            }
-
-            // 只处理同一组内的节点
-            if (sameGroup && currentGroup) {
+            // 如果前一个节点和当前节点在同一组内
+            if (prevNodeGroup && prevNodeGroup === nodeGroup) {
               // 计算注释行数量
               const commentLines = countCommentsBetweenLines(
                 prevLine,
@@ -150,7 +147,7 @@ const rule: Rule.RuleModule = {
 
                 context.report({
                   node,
-                  message: `Expected ${blankLinesWithinGroups} blank line(s) within group "${currentGroup.name}", but found ${linesBetween}`,
+                  message: `Expected ${blankLinesWithinGroups} blank line(s) within group "${nodeGroup.name}", but found ${linesBetween}`,
                   fix(fixer) {
                     // 获取源代码的行分隔符
                     const text = sourceCode.getText();
@@ -186,6 +183,85 @@ const rule: Rule.RuleModule = {
                     } else {
                       newText = lineSeparator.repeat(
                         blankLinesWithinGroups + 1
+                      );
+                    }
+
+                    return fixer.replaceTextRange(range, newText);
+                  },
+                });
+              }
+            }
+            // 处理组前和组后的空行
+            else if (
+              (!prevNodeGroup && nodeGroup) ||
+              (prevNodeGroup && !nodeGroup) ||
+              (prevNodeGroup && nodeGroup && prevNodeGroup !== nodeGroup)
+            ) {
+              // 计算注释行数量
+              const commentLines = countCommentsBetweenLines(
+                prevLine,
+                currLine
+              );
+
+              // 实际空行 = 总行数 - 注释占用的行数 - 1
+              const linesBetween = currLine - prevLine - 1 - commentLines;
+
+              // 组与非组或不同组之间的空行规则
+              if (linesBetween !== blankLinesBetweenGroups) {
+                const groupName = nodeGroup
+                  ? nodeGroup.name
+                  : prevNodeGroup
+                  ? prevNodeGroup.name
+                  : '';
+                const message =
+                  prevNodeGroup && nodeGroup && prevNodeGroup !== nodeGroup
+                    ? `Expected ${blankLinesBetweenGroups} blank line(s) between different groups, but found ${linesBetween}`
+                    : `Expected ${blankLinesBetweenGroups} blank line(s) before/after group "${groupName}", but found ${linesBetween}`;
+
+                context.report({
+                  node,
+                  message,
+                  fix(fixer) {
+                    // 获取源代码的行分隔符
+                    const text = sourceCode.getText();
+                    const lineSeparator = text.includes('\r\n') ? '\r\n' : '\n';
+
+                    // 找到前一个节点或注释的末尾和当前节点的开始之间的范围
+                    const range: [number, number] = [
+                      prevNode.range![1],
+                      node.range![0],
+                    ];
+
+                    // 保持注释，但确保空行数量正确
+                    const originalText = sourceCode.text.substring(
+                      range[0],
+                      range[1]
+                    );
+
+                    // 从最后一个注释后开始计算
+                    let newText = originalText;
+                    const commentsBetween = comments.filter(
+                      (comment) =>
+                        comment.loc!.start.line > prevLine &&
+                        comment.loc!.start.line < currLine
+                    );
+
+                    if (commentsBetween.length > 0) {
+                      const lastCommentIndex =
+                        commentsBetween[commentsBetween.length - 1].range![1] -
+                        range[0];
+                      const textAfterLastComment =
+                        originalText.substring(lastCommentIndex);
+                      const desiredNewlines = lineSeparator.repeat(
+                        blankLinesBetweenGroups + 1
+                      );
+                      newText =
+                        originalText.substring(0, lastCommentIndex) +
+                        desiredNewlines +
+                        textAfterLastComment.trim();
+                    } else {
+                      newText = lineSeparator.repeat(
+                        blankLinesBetweenGroups + 1
                       );
                     }
 

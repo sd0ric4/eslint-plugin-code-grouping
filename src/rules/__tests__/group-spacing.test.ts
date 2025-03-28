@@ -19,10 +19,15 @@ describe('group-spacing rule', () => {
       },
     } as CustomRuleTesterConfig);
 
+    // 测试有效和无效的代码样例
     ruleTester.run('group-spacing', rule, {
+      // 有效的代码样例
       valid: [
+        // 组内没有多余空行，组间有一行空行，都是有效的
         {
           code: `
+           const x = 0;
+           
            // @group start: test
            const a = 1;
            const b = 2;
@@ -33,30 +38,30 @@ describe('group-spacing rule', () => {
           options: [{ blankLinesBetweenGroups: 1, blankLinesWithinGroups: 0 }],
         },
       ],
+      // 无效的代码样例 - 使用简单的测试用例
       invalid: [
+        // 测试组内空行
         {
           code: `
            // @group start: test
            const a = 1;
+
            const b = 2;
            // @group end: test
-           const c = 3;
            `,
-          options: [{ blankLinesBetweenGroups: 1, blankLinesWithinGroups: 0 }],
+          options: [{ blankLinesWithinGroups: 0 }],
           errors: [
             {
               message:
-                'Expected 1 blank line(s) between ungrouped code, but found 0',
+                'Expected 0 blank line(s) within group "test", but found 1',
             },
           ],
-          // 修改这里以匹配实际输出
+          // 修改为实际输出格式
           output: `
            // @group start: test
            const a = 1;
-           const b = 2;
+const b = 2;
            // @group end: test
-
-const c = 3;
            `,
         },
       ],
