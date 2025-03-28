@@ -23,9 +23,9 @@
     "eslint-plugin"
   ],
   "bugs": {
-    "url": "https://github.com/yourusername/eslint-plugin-code-grouping/issues"
+    "url": "https://github.com/sd0ric4/eslint-plugin-code-grouping/issues"
   },
-  "homepage": "https://github.com/yourusername/eslint-plugin-code-grouping#readme",
+  "homepage": "https://github.com/sd0ric4/eslint-plugin-code-grouping#readme",
   "peerDependencies": {
     "eslint": ">=6.0.0"
   },
