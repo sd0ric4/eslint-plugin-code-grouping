@@ -6,7 +6,7 @@ import rule from '../group-spacing';
 interface CustomRuleTesterConfig {
   parser?: string;
   parserOptions?: object;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 describe('group-spacing rule', () => {

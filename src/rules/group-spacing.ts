@@ -140,18 +140,11 @@ const rule: Rule.RuleModule = {
               // 同一组内部的空行规则
               if (linesBetween !== blankLinesWithinGroups) {
                 // 计算注释后的最后一行位置
-                let lastCommentEndLine = prevLine;
                 const commentsBetween = comments.filter(
                   (comment) =>
                     comment.loc!.start.line > prevLine &&
                     comment.loc!.start.line < currLine
                 );
-
-                if (commentsBetween.length > 0) {
-                  lastCommentEndLine = Math.max(
-                    ...commentsBetween.map((comment) => comment.loc!.end.line)
-                  );
-                }
 
                 context.report({
                   node,
@@ -172,7 +165,6 @@ const rule: Rule.RuleModule = {
                       range[0],
                       range[1]
                     );
-                    const lines = originalText.split(lineSeparator);
 
                     // 从最后一个注释后开始计算
                     let newText = originalText;
@@ -203,18 +195,11 @@ const rule: Rule.RuleModule = {
               // 不在任何组中的节点之间的空行规则
               if (linesBetween !== blankLinesBetweenGroups) {
                 // 与上面的逻辑类似，但针对非组节点
-                let lastCommentEndLine = prevLine;
                 const commentsBetween = comments.filter(
                   (comment) =>
                     comment.loc!.start.line > prevLine &&
                     comment.loc!.start.line < currLine
                 );
-
-                if (commentsBetween.length > 0) {
-                  lastCommentEndLine = Math.max(
-                    ...commentsBetween.map((comment) => comment.loc!.end.line)
-                  );
-                }
 
                 context.report({
                   node,
